@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
@@ -27,7 +27,7 @@ router.post('/register',
         body('nickname').optional().isString(),
         body('avatar_url').optional().isString()
     ],
-    async (req, res) => {
+    async (req: Request, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ errors: errors.array() });
@@ -46,14 +46,12 @@ router.post('/register',
             }
 
             const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
-
             const finalNickname = nickname || `user_${Math.floor(Math.random() * 10000)}`;
-
             const finalAvatar = avatar_url || await getAvatarUrl(email);
 
             await sql`
-          INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
-          VALUES (${email}, ${hashedPassword}, ${google_id}, ${finalNickname}, ${finalAvatar}, NOW())`;
+                INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
+                VALUES (${email}, ${hashedPassword}, ${google_id}, ${finalNickname}, ${finalAvatar}, NOW())`;
 
             res.status(201).json({ message: 'Usuari registrat correctament', avatar_url: finalAvatar });
         } catch (error) {
@@ -69,7 +67,7 @@ router.post('/login',
         body('password').optional().isString(),
         body('google_id').optional().isString()
     ],
-    async (req, res) => {
+    async (req: Request, res: Response) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({ errors: errors.array() });
@@ -97,7 +95,6 @@ router.post('/login',
             }
 
             const tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
-
             const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
 
             res.json({
