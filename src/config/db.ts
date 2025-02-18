@@ -5,13 +5,13 @@ let db: Sql | undefined;
 
 const createConnection = async (): Promise<Sql> => {
     try {
-        console.log('INFO: Conectando a la base de datos Supabase/PostgreSQL...');
+        console.log('🔄INFO: Connecting to Supabase/PostgreSQL database...');
 
         // Obtener la URL de conexión de Supabase desde las variables de entorno
         const connectionString: string | undefined = process.env.DATABASE_URL;
 
         if (!connectionString) {
-            throw new Error('ERROR: DATABASE_URL no está definida en las variables de entorno.');
+            throw new Error('❌ERROR: DATABASE_URL is not defined in the environment variables!!!');
         }
 
         // Crear la conexión con la base de datos
@@ -23,12 +23,12 @@ const createConnection = async (): Promise<Sql> => {
         // Verificar la conexión realizando una consulta simple
         // eslint-disable-next-line @typescript-eslint/no-unsafe-call
         await db.unsafe('SELECT 1');
-        console.log('INFO: Conectado a la base de datos Supabase/PostgreSQL');
+        console.log('✅INFO: Connected to Supabase/PostgreSQL database.');
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         return db;
     } catch (error) {
-        console.error('ERROR: No se pudo conectar a la base de datos:', (error as Error).message);
+        console.error('❌ERROR: Could not connect to database:', (error as Error).message);
         process.exit(1); // Terminar el proceso si la conexión falla
     }
 };

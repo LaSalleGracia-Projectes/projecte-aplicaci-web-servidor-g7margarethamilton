@@ -15,7 +15,7 @@ app.use(cors({
 }));
 
 // Conectar a la base de datos Supabase/PostgreSQL
-console.log('INFO: Iniciando conexión a la base de datos...');
+console.log('🌐INFO: Starting database connection...');
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const db = await createConnection();
 app.set('db', db); // Guardar la conexión en la app para usar en otros módulos
