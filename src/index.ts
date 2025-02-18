@@ -4,6 +4,7 @@ import { createConnection } from './config/db.js';
 import apiRouter from './api/index.js';
 import cors from 'cors';
 import authRouter from './api/routers/auth.js';
+import authenticateToken from '../middlewares/auth.js';
 
 const app: Express = express();
 const port: string = process.env.HOST_PORT ?? '3000';
@@ -22,5 +23,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/v1', apiRouter);
 app.use('/auth', authRouter);
+
+router.get('/profile', authenticateToken, async (req, res) => {
+  res.json({ message: 'Aquesta ruta està protegida', userId: req.body.userId });
+});
 
 export default app;
