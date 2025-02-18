@@ -10,74 +10,101 @@ const JWT_SECRET_WEB = process.env.JWT_SECRET_WEB ?? 'defaultsecret_web';
 const JWT_SECRET_APP = process.env.JWT_SECRET_APP ?? 'defaultsecret_app';
 
 router.post('/register',
-  [
-    body('email').isEmail().withMessage('Email invàlid'),
-    body('password').isLength({ min: 6 }).withMessage('La contrasenya ha de tenir almenys 6 caràcters')
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+    [
+        body('email').isEmail().withMessage('Email invàlid'),
+        body('password').optional().isLength({ min: 6 }).withMessage('La contrasenya ha de tenir almenys 6 caràcters'),
+        body('google_id').optional().isString(),
+        body('nickname').optional().isString(),
+        body('avatar_url').optional().isString()
+    ],
+    async (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
+        }
+
+        const { email, password, google_id, nickname, avatar_url } = req.body;
+
+        try {
+            const userExists = await sql`SELECT * FROM users WHERE email = ${email}`;
+            if (userExists.length > 0) {
+                return res.status(400).json({ message: 'L’usuari ja existeix' });
+            }
+
+            if (!google_id && !password) {
+                return res.status(400).json({ message: 'La contrasenya és obligatòria si no s’utilitza Google Login.' });
+            }
+
+            const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
+            const finalNickname = nickname || `user_${Math.floor(Math.random() * 10000)}`;
+
+            const finalAvatar = avatar_url || 'https://example.com/default-avatar.png';
+
+            await sql`
+          INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
+          VALUES (${email}, ${hashedPassword}, ${google_id}, ${finalNickname}, ${finalAvatar}, NOW())`;
+
+            res.status(201).json({ message: 'Usuari registrat correctament' });
+        } catch (error) {
+            console.error('ERROR al registrar:', error);
+            res.status(500).json({ message: 'Error del servidor' });
+        }
     }
-
-    const { email, password } = req.body;
-
-    try {
-      const userExists = await sql`SELECT * FROM users WHERE email = ${email}`;
-      if (userExists.length > 0) {
-        return res.status(400).json({ message: 'L’usuari ja existeix' });
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      await sql`INSERT INTO users (email, password) VALUES (${email}, ${hashedPassword})`;
-
-      res.status(201).json({ message: 'Usuari registrat correctament' });
-    } catch (error) {
-      console.error('ERROR al registrar:', error);
-      res.status(500).json({ message: 'Error del servidor' });
-    }
-  }
 );
 
 router.post('/login',
     [
-      body('email').isEmail().withMessage('Email invàlid'),
-      body('password').exists().withMessage('Cal introduir una contrasenya')
+        body('email').isEmail().withMessage('Email invàlid'),
+        body('password').optional().isString(),
+        body('google_id').optional().isString()
     ],
     async (req, res) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-  
-      const { email, password } = req.body;
-  
-      try {
-        const user = await sql`SELECT * FROM users WHERE email = ${email}`;
-        if (user.length === 0) {
-          return res.status(400).json({ message: 'Credencials incorrectes' });
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
         }
-  
-        const validPassword = await bcrypt.compare(password, user[0].password);
-        if (!validPassword) {
-          return res.status(400).json({ message: 'Credencials incorrectes' });
+
+        const { email, password, google_id } = req.body;
+
+        try {
+            const user = await sql`SELECT * FROM users WHERE email = ${email}`;
+            if (user.length === 0) {
+                return res.status(400).json({ message: 'Credencials incorrectes' });
+            }
+
+            const userData = user[0];
+
+            if (google_id) {
+                if (userData.google_id !== google_id) {
+                    return res.status(400).json({ message: 'Google ID no vàlid' });
+                }
+            } else {
+                const validPassword = await bcrypt.compare(password, userData.password);
+                if (!validPassword) {
+                    return res.status(400).json({ message: 'Credencials incorrectes' });
+                }
+            }
+
+            const tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
+
+            const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
+
+            res.json({
+                tokenWeb,
+                tokenApp,
+                user: {
+                    email: userData.email,
+                    nickname: userData.nickname,
+                    avatar_url: userData.avatar_url,
+                },
+                message: 'Login correcte'
+            });
+        } catch (error) {
+            console.error('ERROR al iniciar sessió:', error);
+            res.status(500).json({ message: 'Error del servidor' });
         }
-  
-        const tokenWeb = jwt.sign({ userId: user[0].id }, JWT_SECRET_WEB, { expiresIn: '1d' });
-  
-        const tokenApp = jwt.sign({ userId: user[0].id }, JWT_SECRET_APP);
-  
-        res.json({ 
-          tokenWeb,
-          tokenApp,
-          message: 'Login correcte'
-        });
-      } catch (error) {
-        console.error('ERROR al iniciar sessió:', error);
-        res.status(500).json({ message: 'Error del servidor' });
-      }
     }
-  );
+);
 
 export default router;

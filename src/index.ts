@@ -4,7 +4,8 @@ import { createConnection } from './config/db.js';
 import apiRouter from './api/index.js';
 import cors from 'cors';
 import authRouter from './api/routers/auth.js';
-import authenticateToken from '../middlewares/auth.js';
+import authenticateToken from './api/middlewares/auth.js';
+import router from './api/routers/auth.js';
 
 const app: Express = express();
 const port: string = process.env.HOST_PORT ?? '3000';
