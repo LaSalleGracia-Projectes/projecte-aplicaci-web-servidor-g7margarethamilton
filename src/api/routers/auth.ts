@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import postgres from 'postgres';
+import axios from 'axios';
 
 const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
