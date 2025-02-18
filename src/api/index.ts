@@ -1,25 +1,16 @@
-import express, { Router } from 'express';
-import userRouter from './routers/userRoutes.js';
-import authRouter from './routers/authRoutes.js';
-import myCitiesRouter from './routers/myCitiesRoutes.js';
-import { getCountries } from './controllers/countryController.js';
-import { getCities } from './controllers/cityController.js';
-import errorMiddleware from './middlewares/errorMiddleware.js';
-import { refreshToken } from './controllers/authController.js';
+import { Router, Request, Response } from 'express';
+import authRouter from './routers/auth.js';
+import authenticateToken from './middlewares/auth.js';
 
-const apiRouter = Router();
+const router = Router();
 
-apiRouter.use(express.json());
+router.use('/auth', authRouter);
 
-apiRouter.use('/users', userRouter);
-apiRouter.use('/auth', authRouter);
-apiRouter.use('/my-cities', myCitiesRouter);
+router.get('/profile', authenticateToken, async (req: Request, res: Response) => {
+  res.json({ 
+    message: 'Aquesta ruta està protegida', 
+    userId: req.body.userId 
+  });
+});
 
-apiRouter.post('/refresh-token', refreshToken);
-
-apiRouter.get('/countries', getCountries);
-apiRouter.get('/cities', getCities);
-
-apiRouter.use(errorMiddleware);
-
-export default apiRouter;
+export default router;

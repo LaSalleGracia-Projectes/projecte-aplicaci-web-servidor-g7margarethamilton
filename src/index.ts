@@ -7,22 +7,23 @@ import cors from 'cors';
 const app: Express = express();
 const port: string = process.env.HOST_PORT ?? '3000';
 
-// Configuración de CORS
 app.use(cors({
-  origin: 'http://localhost:3001',
+  origin: 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Conectar a la base de datos Supabase/PostgreSQL
 console.log('🌐INFO: Starting database connection...');
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const db = await createConnection();
-app.set('db', db); // Guardar la conexión en la app para usar en otros módulos
+app.set('db', db);
 
 app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
-// Rutas de la API
 app.use('/api/v1', apiRouter);
+
+app.listen(port, () => {
+  console.log(`⚡️[server]: El servidor s'està executant a http://localhost:${port}`);
+});
 
 export default app;
