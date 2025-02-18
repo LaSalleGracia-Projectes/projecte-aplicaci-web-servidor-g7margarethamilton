@@ -9,6 +9,15 @@ const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 const JWT_SECRET_WEB = process.env.JWT_SECRET_WEB ?? 'defaultsecret_web';
 const JWT_SECRET_APP = process.env.JWT_SECRET_APP ?? 'defaultsecret_app';
 
+const getAvatarUrl = async (email: string): Promise<string> => {
+    try {
+        const response = await axios.get(`https://unavatar.io/${email}`);
+        return response.data.url;
+    } catch {
+        return 'https://example.com/default-avatar.png';
+    }
+};
+
 router.post('/register',
     [
         body('email').isEmail().withMessage('Email invàlid'),
@@ -39,13 +48,13 @@ router.post('/register',
 
             const finalNickname = nickname || `user_${Math.floor(Math.random() * 10000)}`;
 
-            const finalAvatar = avatar_url || 'https://example.com/default-avatar.png';
+            const finalAvatar = avatar_url || await getAvatarUrl(email);
 
             await sql`
           INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
           VALUES (${email}, ${hashedPassword}, ${google_id}, ${finalNickname}, ${finalAvatar}, NOW())`;
 
-            res.status(201).json({ message: 'Usuari registrat correctament' });
+            res.status(201).json({ message: 'Usuari registrat correctament', avatar_url: finalAvatar });
         } catch (error) {
             console.error('ERROR al registrar:', error);
             res.status(500).json({ message: 'Error del servidor' });
