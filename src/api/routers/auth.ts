@@ -6,7 +6,8 @@ import postgres from 'postgres';
 
 const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
-const JWT_SECRET = process.env.JWT_SECRET_KEY ?? 'defaultsecret';
+const JWT_SECRET_WEB = process.env.JWT_SECRET_WEB ?? 'defaultsecret_web';
+const JWT_SECRET_APP = process.env.JWT_SECRET_APP ?? 'defaultsecret_app';
 
 router.post('/register',
   [
@@ -40,37 +41,43 @@ router.post('/register',
 );
 
 router.post('/login',
-  [
-    body('email').isEmail().withMessage('Email invàlid'),
-    body('password').exists().withMessage('Cal introduir una contrasenya')
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password } = req.body;
-
-    try {
-      const user = await sql`SELECT * FROM users WHERE email = ${email}`;
-      if (user.length === 0) {
-        return res.status(400).json({ message: 'Credencials incorrectes' });
+    [
+      body('email').isEmail().withMessage('Email invàlid'),
+      body('password').exists().withMessage('Cal introduir una contrasenya')
+    ],
+    async (req, res) => {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
       }
-
-      const validPassword = await bcrypt.compare(password, user[0].password);
-      if (!validPassword) {
-        return res.status(400).json({ message: 'Credencials incorrectes' });
+  
+      const { email, password } = req.body;
+  
+      try {
+        const user = await sql`SELECT * FROM users WHERE email = ${email}`;
+        if (user.length === 0) {
+          return res.status(400).json({ message: 'Credencials incorrectes' });
+        }
+  
+        const validPassword = await bcrypt.compare(password, user[0].password);
+        if (!validPassword) {
+          return res.status(400).json({ message: 'Credencials incorrectes' });
+        }
+  
+        const tokenWeb = jwt.sign({ userId: user[0].id }, JWT_SECRET_WEB, { expiresIn: '1d' });
+  
+        const tokenApp = jwt.sign({ userId: user[0].id }, JWT_SECRET_APP);
+  
+        res.json({ 
+          tokenWeb,
+          tokenApp,
+          message: 'Login correcte'
+        });
+      } catch (error) {
+        console.error('ERROR al iniciar sessió:', error);
+        res.status(500).json({ message: 'Error del servidor' });
       }
-
-      const token = jwt.sign({ userId: user[0].id }, JWT_SECRET, { expiresIn: '1h' });
-
-      res.json({ token, message: 'Login correcte' });
-    } catch (error) {
-      console.error('ERROR al iniciar sessió:', error);
-      res.status(500).json({ message: 'Error del servidor' });
     }
-  }
-);
+  );
 
 export default router;
