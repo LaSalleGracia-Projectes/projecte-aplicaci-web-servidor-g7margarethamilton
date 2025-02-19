@@ -11,23 +11,29 @@ const JWT_SECRET_WEB = process.env.JWT_SECRET_WEB ?? 'defaultsecret_web';
 const JWT_SECRET_APP = process.env.JWT_SECRET_APP ?? 'defaultsecret_app';
 
 const getAvatarUrl = async (name: string, email: string): Promise<string> => {
-    try {
-        console.log(`🌐INFO: Generating avatar for ${name || email}...`);
-        const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&background=random`;
-        
-        const response = await axios.get(avatarUrl, { timeout: 5000 });
+    console.log(`🌐INFO: Generating avatar for ${name || email}...`);
 
-        if (response.status === 200) {
-            console.log(`✅INFO: Avatar successfully generated: ${avatarUrl}`);
-            return avatarUrl;
-        } else {
-            throw new Error('UI Avatars did not return a valid response.');
-        }
-    } catch (error) {
-        console.error(`❌ERROR: Failed to fetch avatar for ${name || email}:`, error);
-        return 'https://example.com/default-avatar.png';
-    }
+    const colors = [
+        { bg: "0D47A1", text: "FFFFFF" }, // Blau fosc
+        { bg: "64B5F6", text: "000000" }, // Blau cel
+        { bg: "D32F2F", text: "FFFFFF" }, // Vermell fosc
+        { bg: "F57C00", text: "FFFFFF" }, // Taronja
+        { bg: "FBC02D", text: "000000" }, // Groc
+        { bg: "388E3C", text: "FFFFFF" }, // Verd fosc
+        { bg: "81C784", text: "000000" }, // Verd clar
+        { bg: "7B1FA2", text: "FFFFFF" }, // Lila fosc
+        { bg: "212121", text: "FFFFFF" }, // Negre
+        { bg: "E0E0E0", text: "000000" }  // Gris clar
+    ];
+
+    const selectedColor = colors[Math.floor(Math.random() * colors.length)];
+
+    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&background=${selectedColor.bg}&color=${selectedColor.text}&size=128&font-size=0.5`;
+
+    console.log(`✅INFO: Avatar successfully generated: ${avatarUrl}`);
+    return avatarUrl;
 };
+
 
 router.post('/register',
     [
