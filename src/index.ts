@@ -24,7 +24,7 @@ app.use(express.json());
 app.use('/api/v1', apiRouter);
 
 app.listen(port, () => {
-  firebase_log(`⚡️[server]: El servidor s'està executant a http://localhost:${port}`);
+  firebase_log(`⚡️[server]: The server is running at http://localhost:${port}`);
 });
 
 export default app;
