@@ -4,7 +4,7 @@ import { db } from "../../config/firebaseConfig.js";
 const router = Router();
 
 // 🔥 Ruta per eliminar TOTS els logs
-router.delete("/log", async (req, res) => {
+router.delete("/delete", async (req, res) => {
     try {
         let totalDeleted = 0;
         const logsRef = db.collection("logs");
