@@ -37,7 +37,7 @@ const getAvatarUrl = async (name: string, email: string): Promise<string> => {
 router.post('/register',
     [
         body('email').isEmail().withMessage('Invalid email'),
-        body('password').optional().isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+        body('password').optional().isLength({ min: 9 }).withMessage('Password must be at least 9 characters long').matches(/^(?=(.*\d){3,})(?=(.*[a-z]){3,})(?=(.*[A-Z]){3,}).{9,}$/).withMessage('Password must contain at least 3 uppercase letters, 3 lowercase letters, and 3 numbers'),
         body('google_id').optional().isString(),
         body('nickname').optional().isString()
     ],
@@ -101,7 +101,7 @@ router.post('/register',
 router.post('/login',
     [
         body('email').isEmail().withMessage('Invalid email'),
-        body('password').optional().isString(),
+        body('password').optional().isLength({ min: 9 }).withMessage('Password must be at least 9 characters long').matches(/^(?=(.*\d){3,})(?=(.*[a-z]){3,})(?=(.*[A-Z]){3,}).{9,}$/).withMessage('Password must contain at least 3 uppercase letters, 3 lowercase letters, and 3 numbers'),
         body('google_id').optional().isString()
     ],
     async (req: Request, res: Response) => {
