@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import postgres from 'postgres';
-import axios from 'axios';
+import { firebase_log, firebase_error } from './../../logger.js';
 
 const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
@@ -14,16 +14,16 @@ const getAvatarUrl = async (name: string, email: string): Promise<string> => {
     console.log(`🌐INFO: Generating avatar for ${name || email}...`);
 
     const colors = [
-        { bg: "0D47A1", text: "FFFFFF" }, // Blau fosc
-        { bg: "64B5F6", text: "000000" }, // Blau cel
-        { bg: "D32F2F", text: "FFFFFF" }, // Vermell fosc
-        { bg: "F57C00", text: "FFFFFF" }, // Taronja
-        { bg: "FBC02D", text: "000000" }, // Groc
-        { bg: "388E3C", text: "FFFFFF" }, // Verd fosc
-        { bg: "81C784", text: "000000" }, // Verd clar
-        { bg: "7B1FA2", text: "FFFFFF" }, // Lila fosc
-        { bg: "212121", text: "FFFFFF" }, // Negre
-        { bg: "E0E0E0", text: "000000" }  // Gris clar
+        { bg: "0D47A1", text: "FFFFFF" }, // Dark Blue
+        { bg: "64B5F6", text: "000000" }, // Light Blue
+        { bg: "D32F2F", text: "FFFFFF" }, // Dark Red
+        { bg: "F57C00", text: "FFFFFF" }, // Orange
+        { bg: "FBC02D", text: "000000" }, // Yellow
+        { bg: "388E3C", text: "FFFFFF" }, // Dark Green
+        { bg: "81C784", text: "000000" }, // Light Green
+        { bg: "7B1FA2", text: "FFFFFF" }, // Dark Purple
+        { bg: "212121", text: "FFFFFF" }, // Black
+        { bg: "E0E0E0", text: "000000" }  // Light Gray
     ];
 
     const selectedColor = colors[Math.floor(Math.random() * colors.length)];
@@ -33,7 +33,6 @@ const getAvatarUrl = async (name: string, email: string): Promise<string> => {
     console.log(`✅INFO: Avatar successfully generated: ${avatarUrl}`);
     return avatarUrl;
 };
-
 
 router.post('/register',
     [
@@ -50,7 +49,7 @@ router.post('/register',
             }
 
             const { email, password, google_id, nickname } = req.body;
-            console.log(`📝INFO: Registering user with email: ${email}`);
+            firebase_log(`📝INFO: Registering user with email: ${email}`);
 
             const userExists = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (userExists.length > 0) {
@@ -72,7 +71,7 @@ router.post('/register',
             }
 
             if (!finalAvatar) {
-                console.error(`❌ERROR: Could not fetch avatar after two attempts. Registration halted.`);
+                firebase_error(`❌ERROR: Could not fetch avatar after two attempts. Registration halted.`);
                 return res.status(500).json({ message: 'Error retrieving avatar. Please try again later.' });
             }
 
@@ -84,11 +83,11 @@ router.post('/register',
                 INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
                 VALUES (${email}, ${hashedPassword}, ${finalGoogleId}, ${finalNickname}, ${finalAvatar}, NOW())`;
 
-            console.log(`✅INFO: User successfully registered: ${email}`);
+            firebase_log(`✅INFO: User successfully registered: ${email}`);
             res.status(201).json({ message: 'User successfully registered', avatar_url: finalAvatar });
 
         } catch (error: any) {
-            console.error('❌ERROR during registration:', error);
+            firebase_error(`❌ERROR during registration: ${(error as Error).message}`);
 
             if (error.code === '23505') {
                 return res.status(409).json({ message: 'User already exists' });
@@ -101,7 +100,7 @@ router.post('/register',
 
 router.post('/login',
     [
-        body('email').isEmail().withMessage('Email invàlid'),
+        body('email').isEmail().withMessage('Invalid email'),
         body('password').optional().isString(),
         body('google_id').optional().isString()
     ],
@@ -113,33 +112,33 @@ router.post('/login',
             }
 
             const { email, password, google_id } = req.body;
-            console.log(`🔐INFO: Intent de login per ${email}`);
+            firebase_log(`🔐INFO: Login attempt for ${email}`);
 
             const user = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (user.length === 0) {
-                console.warn(`⚠️WARNING: Intent de login amb email no existent: ${email}`);
-                return res.status(401).json({ message: 'Credencials incorrectes' });
+                console.warn(`⚠️WARNING: Login attempt with non-existent email: ${email}`);
+                return res.status(401).json({ message: 'Incorrect credentials' });
             }
 
             const userData = user[0];
 
             if (google_id) {
                 if (userData.google_id !== google_id) {
-                    console.warn(`⚠️WARNING: Intent de login amb Google ID incorrecte per ${email}`);
-                    return res.status(401).json({ message: 'Google ID no vàlid' });
+                    console.warn(`⚠️WARNING: Login attempt with incorrect Google ID for ${email}`);
+                    return res.status(401).json({ message: 'Invalid Google ID' });
                 }
             } else {
                 const validPassword = await bcrypt.compare(password, userData.password);
                 if (!validPassword) {
-                    console.warn(`⚠️WARNING: Contrasenya incorrecta per ${email}`);
-                    return res.status(401).json({ message: 'Credencials incorrectes' });
+                    console.warn(`⚠️WARNING: Incorrect password for ${email}`);
+                    return res.status(401).json({ message: 'Incorrect credentials' });
                 }
             }
 
             const tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
             const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
 
-            console.log(`✅INFO: Login correcte per ${email}`);
+            firebase_log(`✅INFO: Successful login for ${email}`);
 
             res.json({
                 tokenWeb,
@@ -149,12 +148,12 @@ router.post('/login',
                     nickname: userData.nickname,
                     avatar_url: userData.avatar_url,
                 },
-                message: 'Login correcte'
+                message: 'Successful login'
             });
 
         } catch (error: any) {
-            console.error('❌ERROR al iniciar sessió:', error);
-            res.status(500).json({ message: 'Error del servidor' });
+            firebase_error(`❌ERROR upon login: ${(error as Error).message}`);
+            res.status(500).json({ message: 'Server error' });
         }
     }
 );
