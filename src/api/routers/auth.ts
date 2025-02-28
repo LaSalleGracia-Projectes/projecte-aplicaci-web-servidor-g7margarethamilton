@@ -98,7 +98,7 @@ router.post('/register',
     }
 );
 
-router.post('web/login',
+router.post('/web/login',
     [
         body('email').isEmail().withMessage('Invalid email'),
         body('password').optional().isLength({ min: 9 }).withMessage('Password must be at least 9 characters long').matches(/^(?=(.*\d){3,})(?=(.*[a-z]){3,})(?=(.*[A-Z]){3,}).{9,}$/).withMessage('Password must contain at least 3 uppercase letters, 3 lowercase letters, and 3 numbers'),
@@ -112,7 +112,7 @@ router.post('web/login',
             }
 
             const { email, password, google_id } = req.body;
-            firebase_log(`🔐INFO: Login attempt for ${email}`);
+            firebase_log(`🔐INFO: Web login attempt for ${email}`);
 
             const user = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (user.length === 0) {
@@ -139,7 +139,7 @@ router.post('web/login',
             
             await sql`UPDATE users SET web_token = ${tokenWeb} WHERE email = ${email}`;
 
-            firebase_log(`✅INFO: Successful login for ${email}`);
+            firebase_log(`✅INFO: Successful web login for ${email}`);
 
             res.json({
                 tokenWeb,
@@ -152,13 +152,13 @@ router.post('web/login',
             });
 
         } catch (error: any) {
-            firebase_error(`❌ERROR upon login: ${(error as Error).message}`);
+            firebase_error(`❌ERROR upon web login: ${(error as Error).message}`);
             res.status(500).json({ message: 'Server error' });
         }
     }
 );
 
-router.post('app/login',
+router.post('/app/login',
     [
         body('email').isEmail().withMessage('Invalid email'),
         body('password').optional().isLength({ min: 9 }).withMessage('Password must be at least 9 characters long').matches(/^(?=(.*\d){3,})(?=(.*[a-z]){3,})(?=(.*[A-Z]){3,}).{9,}$/).withMessage('Password must contain at least 3 uppercase letters, 3 lowercase letters, and 3 numbers'),
@@ -172,7 +172,7 @@ router.post('app/login',
             }
 
             const { email, password, google_id } = req.body;
-            firebase_log(`🔐INFO: Login attempt for ${email}`);
+            firebase_log(`🔐INFO: App login attempt for ${email}`);
 
             const user = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (user.length === 0) {
@@ -195,11 +195,13 @@ router.post('app/login',
                 }
             }
 
+            // TODO: Ficar condició per comprovar si ja hi ha un token
+
             const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
-            
+
             await sql`UPDATE users SET app_token = ${tokenApp} WHERE email = ${email}`;
 
-            firebase_log(`✅INFO: Successful login for ${email}`);
+            firebase_log(`✅INFO: Successful app login for ${email}`);
 
             res.json({
                 tokenApp,
@@ -212,7 +214,7 @@ router.post('app/login',
             });
 
         } catch (error: any) {
-            firebase_error(`❌ERROR upon login: ${(error as Error).message}`);
+            firebase_error(`❌ERROR upon app login: ${(error as Error).message}`);
             res.status(500).json({ message: 'Server error' });
         }
     }
