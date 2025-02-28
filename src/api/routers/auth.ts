@@ -98,7 +98,7 @@ router.post('/register',
     }
 );
 
-router.post('/login',
+router.post('web/login',
     [
         body('email').isEmail().withMessage('Invalid email'),
         body('password').optional().isLength({ min: 9 }).withMessage('Password must be at least 9 characters long').matches(/^(?=(.*\d){3,})(?=(.*[a-z]){3,})(?=(.*[A-Z]){3,}).{9,}$/).withMessage('Password must contain at least 3 uppercase letters, 3 lowercase letters, and 3 numbers'),
@@ -136,12 +136,72 @@ router.post('/login',
             }
 
             const tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
-            const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
+            
+            await sql`UPDATE users SET web_token = ${tokenWeb} WHERE email = ${email}`;
 
             firebase_log(`✅INFO: Successful login for ${email}`);
 
             res.json({
                 tokenWeb,
+                user: {
+                    email: userData.email,
+                    nickname: userData.nickname,
+                    avatar_url: userData.avatar_url,
+                },
+                message: 'Successful login'
+            });
+
+        } catch (error: any) {
+            firebase_error(`❌ERROR upon login: ${(error as Error).message}`);
+            res.status(500).json({ message: 'Server error' });
+        }
+    }
+);
+
+router.post('app/login',
+    [
+        body('email').isEmail().withMessage('Invalid email'),
+        body('password').optional().isLength({ min: 9 }).withMessage('Password must be at least 9 characters long').matches(/^(?=(.*\d){3,})(?=(.*[a-z]){3,})(?=(.*[A-Z]){3,}).{9,}$/).withMessage('Password must contain at least 3 uppercase letters, 3 lowercase letters, and 3 numbers'),
+        body('google_id').optional().isString()
+    ],
+    async (req: Request, res: Response) => {
+        try {
+            const errors = validationResult(req);
+            if (!errors.isEmpty()) {
+                return res.status(400).json({ errors: errors.array() });
+            }
+
+            const { email, password, google_id } = req.body;
+            firebase_log(`🔐INFO: Login attempt for ${email}`);
+
+            const user = await sql`SELECT * FROM users WHERE email = ${email}`;
+            if (user.length === 0) {
+                console.warn(`⚠️WARNING: Login attempt with non-existent email: ${email}`);
+                return res.status(401).json({ message: 'Incorrect credentials' });
+            }
+
+            const userData = user[0];
+
+            if (google_id) {
+                if (userData.google_id !== google_id) {
+                    console.warn(`⚠️WARNING: Login attempt with incorrect Google ID for ${email}`);
+                    return res.status(401).json({ message: 'Invalid Google ID' });
+                }
+            } else {
+                const validPassword = await bcrypt.compare(password, userData.password);
+                if (!validPassword) {
+                    console.warn(`⚠️WARNING: Incorrect password for ${email}`);
+                    return res.status(401).json({ message: 'Incorrect credentials' });
+                }
+            }
+
+            const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
+            
+            await sql`UPDATE users SET app_token = ${tokenApp} WHERE email = ${email}`;
+
+            firebase_log(`✅INFO: Successful login for ${email}`);
+
+            res.json({
                 tokenApp,
                 user: {
                     email: userData.email,
