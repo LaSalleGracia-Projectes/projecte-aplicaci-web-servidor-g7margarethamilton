@@ -25,15 +25,18 @@ const getAvatarUrl = async (name: string, email: string): Promise<string> => {
         { bg: "212121", text: "FFFFFF" }, // Black
         { bg: "E0E0E0", text: "000000" }  // Light Gray
     ];
-
+    // Seleccionem un color aleatori
     const selectedColor = colors[Math.floor(Math.random() * colors.length)];
-
+    // Generem l'URL de l'avatar
     const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&background=${selectedColor.bg}&color=${selectedColor.text}&size=128&font-size=0.5`;
 
     console.log(`✅INFO: Avatar successfully generated: ${avatarUrl}`);
     return avatarUrl;
 };
 
+/**
+ * Link: /api/v1/auth/register
+ */
 router.post('/register',
     [
         body('email').isEmail().withMessage('Invalid email'),
@@ -43,42 +46,44 @@ router.post('/register',
     ],
     async (req: Request, res: Response) => {
         try {
+            // Validem les dades rebudes
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
-
+            // Obtenim les dades de la petició
             const { email, password, google_id, nickname } = req.body;
             firebase_log(`📝INFO: Registering user with email: ${email}`);
-
+            // Comprovem si l'usuari ja existeix
             const userExists = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (userExists.length > 0) {
                 console.warn(`⚠️WARNING: Registration attempt with existing email: ${email}`);
                 return res.status(409).json({ message: 'User already exists' });
             }
-
+            // Generem un hash de la contrasenya
             if (!google_id && !password) {
                 return res.status(400).json({ message: 'Password is required if not using Google Login.' });
             }
-
+            // Generem un hash de la contrasenya
             const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+            // Generem un nickname per l'usuari
             const finalNickname = nickname ?? `user_${Math.floor(Math.random() * 10000)}`;
-
+            // Obtenim l'avatar de l'usuari
             let finalAvatar = await getAvatarUrl(finalNickname, email);
-            if (!finalAvatar) {
+            if (!finalAvatar) { // Si falla, ho intenta una altra vegada
                 console.warn(`⚠️WARNING: Avatar fetch failed. Retrying...`);
                 finalAvatar = await getAvatarUrl(finalNickname, email);
             }
-
+            // Si falla dues vegades, retorna un error
             if (!finalAvatar) {
                 firebase_error(`❌ERROR: Could not fetch avatar after two attempts. Registration halted.`);
                 return res.status(500).json({ message: 'Error retrieving avatar. Please try again later.' });
             }
-
+            // Comprovem si l'usuari s'està registrant amb Google
             const finalGoogleId = google_id ?? null;
 
             console.log({ email, hashedPassword, finalGoogleId, finalNickname, finalAvatar });
-
+            // Guardem l'usuari a la base de dades
             await sql`
                 INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
                 VALUES (${email}, ${hashedPassword}, ${finalGoogleId}, ${finalNickname}, ${finalAvatar}, NOW())`;
@@ -98,6 +103,9 @@ router.post('/register',
     }
 );
 
+/**
+ * Link: /api/v1/auth/web/login
+ */
 router.post('/web/login',
     [
         body('email').isEmail().withMessage('Invalid email'),
@@ -111,15 +119,18 @@ router.post('/web/login',
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
+
             // Obtenim les dades de la petició
             const { email, password, google_id } = req.body;
             firebase_log(`🔐INFO: Web login attempt for ${email}`);
+
             // Comprovem si l'usuari existeix
             const user = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (user.length === 0) {
                 console.warn(`⚠️WARNING: Login attempt with non-existent email: ${email}`);
                 return res.status(401).json({ message: 'Incorrect credentials' });
             }
+
             // Obtenim les dades de l'usuari
             const userData = user[0];
 
@@ -138,10 +149,24 @@ router.post('/web/login',
                     return res.status(401).json({ message: 'Incorrect credentials' });
                 }
             }
-            // Generem un token JWT per a l'usuari
-            const tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
-            // Guardem el token a la base de dades
-            await sql`UPDATE users SET web_token = ${tokenWeb} WHERE email = ${email}`;
+
+            let tokenWeb = userData.web_token; // Comprova si ja hi ha un token guardat
+            
+            if (tokenWeb) { // Comprova si el token és vàlid
+                try {
+                    // Verifica si el token és vàlid
+                    jwt.verify(tokenWeb, JWT_SECRET_WEB);
+                } catch (err) {
+                    // Si el token ha expirat o és invàlid, es genera un de nou
+                    console.warn(`⚠️WARNING: Expired or invalid web token for ${email}. Generating a new one.`);
+                    tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
+                    await sql`UPDATE users SET web_token = ${tokenWeb} WHERE email = ${email}`;
+                }
+            } else {
+                // Si no hi ha token, en genera un de nou
+                tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
+                await sql`UPDATE users SET web_token = ${tokenWeb} WHERE email = ${email}`;
+            }
 
             firebase_log(`✅INFO: Successful web login for ${email}`);
 
@@ -162,6 +187,9 @@ router.post('/web/login',
     }
 );
 
+/**
+ * Link: /api/v1/auth/app/login
+ */
 router.post('/app/login',
     [
         body('email').isEmail().withMessage('Invalid email'),
