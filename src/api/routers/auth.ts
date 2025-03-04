@@ -106,37 +106,41 @@ router.post('/web/login',
     ],
     async (req: Request, res: Response) => {
         try {
+            // Validem les dades rebudes
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
-
+            // Obtenim les dades de la petició
             const { email, password, google_id } = req.body;
             firebase_log(`🔐INFO: Web login attempt for ${email}`);
-
+            // Comprovem si l'usuari existeix
             const user = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (user.length === 0) {
                 console.warn(`⚠️WARNING: Login attempt with non-existent email: ${email}`);
                 return res.status(401).json({ message: 'Incorrect credentials' });
             }
-
+            // Obtenim les dades de l'usuari
             const userData = user[0];
 
+            // Comprovem si l'usuari ha fet login amb Google
             if (google_id) {
+                // Comprovem si l'ID de Google és correcte
                 if (userData.google_id !== google_id) {
                     console.warn(`⚠️WARNING: Login attempt with incorrect Google ID for ${email}`);
                     return res.status(401).json({ message: 'Invalid Google ID' });
                 }
             } else {
+                // Comprovem si la contrasenya és correcta
                 const validPassword = await bcrypt.compare(password, userData.password);
                 if (!validPassword) {
                     console.warn(`⚠️WARNING: Incorrect password for ${email}`);
                     return res.status(401).json({ message: 'Incorrect credentials' });
                 }
             }
-
+            // Generem un token JWT per a l'usuari
             const tokenWeb = jwt.sign({ userId: userData.email }, JWT_SECRET_WEB, { expiresIn: '1d' });
-            
+            // Guardem el token a la base de dades
             await sql`UPDATE users SET web_token = ${tokenWeb} WHERE email = ${email}`;
 
             firebase_log(`✅INFO: Successful web login for ${email}`);
@@ -166,28 +170,35 @@ router.post('/app/login',
     ],
     async (req: Request, res: Response) => {
         try {
+            // Validem les dades rebudes
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
 
+            // Obtenim les dades de la petició
             const { email, password, google_id } = req.body;
             firebase_log(`🔐INFO: App login attempt for ${email}`);
 
+            // Comprovem si l'usuari existeix
             const user = await sql`SELECT * FROM users WHERE email = ${email}`;
             if (user.length === 0) {
                 console.warn(`⚠️WARNING: Login attempt with non-existent email: ${email}`);
                 return res.status(401).json({ message: 'Incorrect credentials' });
             }
 
+            // Obtenim les dades de l'usuari
             const userData = user[0];
 
+            // Comprovem si l'usuari ha fet login amb Google
             if (google_id) {
+                // Comprovem si l'ID de Google és correcte
                 if (userData.google_id !== google_id) {
                     console.warn(`⚠️WARNING: Login attempt with incorrect Google ID for ${email}`);
                     return res.status(401).json({ message: 'Invalid Google ID' });
                 }
             } else {
+                // Comprovem si la contrasenya és correcta
                 const validPassword = await bcrypt.compare(password, userData.password);
                 if (!validPassword) {
                     console.warn(`⚠️WARNING: Incorrect password for ${email}`);
@@ -195,11 +206,12 @@ router.post('/app/login',
                 }
             }
 
-            // TODO: Ficar condició per comprovar si ja hi ha un token
+            let tokenApp = userData.app_token; // Comprova si ja hi ha un token guardat
 
-            const tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
-
-            await sql`UPDATE users SET app_token = ${tokenApp} WHERE email = ${email}`;
+            if (!tokenApp) { // Si no hi ha token, en genera un de nou
+                tokenApp = jwt.sign({ userId: userData.email }, JWT_SECRET_APP);
+                await sql`UPDATE users SET app_token = ${tokenApp} WHERE email = ${email}`;
+            }
 
             firebase_log(`✅INFO: Successful app login for ${email}`);
 
