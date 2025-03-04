@@ -188,6 +188,43 @@ router.post('/web/login',
 );
 
 /**
+ * Link: /api/v1/auth/web/logout
+ */
+router.post('/web/logout', async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+        // Comprovem si l'usuari ha enviat les dades correctes
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        // Comprovem si l'usuari existeix
+        const user = await sql`SELECT * FROM users WHERE email = ${email}`;
+        if (user.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const userData = user[0];
+
+        // Comprovem si la contrasenya és correcta
+        const validPassword = await bcrypt.compare(password, userData.password);
+        if (!validPassword) {
+            return res.status(401).json({ message: 'Incorrect password' });
+        }
+
+        // Esborrem el token web de la base de dades
+        await sql`UPDATE users SET web_token = NULL WHERE email = ${email}`;
+
+        firebase_log(`✅INFO: Web logout successful for ${email}`);
+        res.json({ message: 'Successfully logged out from the web' });
+
+    } catch (error: any) {
+        firebase_error(`❌ERROR during web logout: ${(error as Error).message}`);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+/**
  * Link: /api/v1/auth/app/login
  */
 router.post('/app/login',
@@ -259,5 +296,42 @@ router.post('/app/login',
         }
     }
 );
+
+/**
+ * Link: /api/v1/auth/app/logout
+ */
+router.post('/app/logout', async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+        // Comprovem si s'han proporcionat les dades necessàries
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        // Comprovem si l'usuari existeix
+        const user = await sql`SELECT * FROM users WHERE email = ${email}`;
+        if (user.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const userData = user[0];
+
+        // Comprovem si la contrasenya és correcta
+        const validPassword = await bcrypt.compare(password, userData.password);
+        if (!validPassword) {
+            return res.status(401).json({ message: 'Incorrect password' });
+        }
+
+        // Esborrem el token de l'app de la base de dades
+        await sql`UPDATE users SET app_token = NULL WHERE email = ${email}`;
+
+        firebase_log(`✅INFO: App logout successful for ${email}`);
+        res.json({ message: 'Successfully logged out from the app' });
+
+    } catch (error: any) {
+        firebase_error(`❌ERROR during app logout: ${(error as Error).message}`);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 export default router;
