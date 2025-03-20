@@ -6,7 +6,6 @@ const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 
 /**
- * 🔍 GET: Obtenir un usuari per email
  * URL: /api/v1/user/:email
  */
 router.get('/:email', validateUserPermission, async (req: Request, res: Response) => {
@@ -29,7 +28,6 @@ router.get('/:email', validateUserPermission, async (req: Request, res: Response
 });
 
 /**
- * ✏️ PUT: Actualitzar un usuari
  * URL: /api/v1/user/:email
  */
 router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
@@ -57,7 +55,6 @@ router.put('/:email', validateUserPermission, async (req: Request, res: Response
 });
 
 /**
- * ❌ DELETE: Esborrar un usuari i la seva configuració associada
  * URL: /api/v1/user/:email
  */
 router.delete('/:email', validateUserPermission, async (req: Request, res: Response) => {
