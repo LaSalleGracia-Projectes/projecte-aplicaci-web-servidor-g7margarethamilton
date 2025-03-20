@@ -1,17 +1,17 @@
 import { Router, Request, Response } from 'express';
 import postgres from 'postgres';
-import { firebase_log, firebase_error } from './../../logger.js';
+import validateUserPermission from '../middlewares/validateUserPermission.js';
 
 const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 
 /**
+ * 🔍 GET: Obtenir un usuari per email
  * URL: /api/v1/user/:email
  */
-router.get('/:email', async (req: Request, res: Response) => {
+router.get('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
-        firebase_log(`🔍INFO: Fetching user ${email}`);
 
         const user = await sql`
             SELECT email, google_id, nickname, avatar_url, is_admin, is_banned, created_at 
@@ -19,25 +19,23 @@ router.get('/:email', async (req: Request, res: Response) => {
             WHERE email = ${email}`;
         
         if (user.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: 'Usuari no trobat' });
         }
 
         res.json(user[0]);
     } catch (error: any) {
-        firebase_error(`❌ERROR fetching user: ${error.message}`);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Error del servidor' });
     }
 });
 
 /**
+ * ✏️ PUT: Actualitzar un usuari
  * URL: /api/v1/user/:email
  */
-router.put('/:email', async (req: Request, res: Response) => {
+router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
         const { nickname, avatar_url, is_admin, is_banned } = req.body;
-        
-        firebase_log(`✏️INFO: Updating user ${email}`);
 
         const updatedUser = await sql`
             UPDATE users 
@@ -49,37 +47,33 @@ router.put('/:email', async (req: Request, res: Response) => {
             RETURNING email, nickname, avatar_url, is_admin, is_banned, created_at`;
 
         if (updatedUser.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: 'Usuari no trobat' });
         }
 
-        res.json({ message: 'User updated successfully', user: updatedUser[0] });
+        res.json({ message: 'Usuari actualitzat correctament', user: updatedUser[0] });
     } catch (error: any) {
-        firebase_error(`❌ERROR updating user: ${error.message}`);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Error del servidor' });
     }
 });
 
 /**
+ * ❌ DELETE: Esborrar un usuari i la seva configuració associada
  * URL: /api/v1/user/:email
  */
-router.delete('/:email', async (req: Request, res: Response) => {
+router.delete('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
-        firebase_log(`❌INFO: Deleting user ${email}`);
 
-        // Esborrem la configuració associada abans de l'usuari (per integritat referencial)
         await sql`DELETE FROM settings WHERE email = ${email}`;
-
         const deletedUser = await sql`DELETE FROM users WHERE email = ${email} RETURNING *`;
 
         if (deletedUser.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ message: 'Usuari no trobat' });
         }
 
-        res.json({ message: 'User deleted successfully' });
+        res.json({ message: 'Usuari eliminat correctament' });
     } catch (error: any) {
-        firebase_error(`❌ERROR deleting user: ${error.message}`);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Error del servidor' });
     }
 });
 
