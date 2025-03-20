@@ -87,6 +87,10 @@ router.post('/register',
             await sql`
                 INSERT INTO users (email, password, google_id, nickname, avatar_url, created_at) 
                 VALUES (${email}, ${hashedPassword}, ${finalGoogleId}, ${finalNickname}, ${finalAvatar}, NOW())`;
+            // Guardem la configuració per defecte de l'usuari a la base de dades
+            await sql`
+                INSERT INTO settings (email)
+                VALUES (${email})`;
 
             firebase_log(`✅INFO: User successfully registered: ${email}`);
             res.status(201).json({ message: 'User successfully registered', avatar_url: finalAvatar });
