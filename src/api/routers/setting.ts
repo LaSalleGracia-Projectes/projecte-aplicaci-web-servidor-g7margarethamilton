@@ -1,19 +1,16 @@
 import { Router, Request, Response } from 'express';
 import postgres from 'postgres';
-import { firebase_log, firebase_error } from './../../logger.js';
+import validateUserPermission from '../middlewares/validateUserPermission.js';
 
 const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 
-const settingsRouter = Router();
-
 /**
  * URL: /api/v1/setting/:email
  */
-router.get('/:email', async (req: Request, res: Response) => {
+router.get('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
-        firebase_log(`🔍INFO: Fetching settings for ${email}`);
 
         const settings = await sql`
             SELECT email, theme_mode, lang_code, allow_notification, merge_schedule_calendar, created_at
@@ -21,25 +18,22 @@ router.get('/:email', async (req: Request, res: Response) => {
             WHERE email = ${email}`;
         
         if (settings.length === 0) {
-            return res.status(404).json({ message: 'Settings not found' });
+            return res.status(404).json({ message: 'Configuració no trobada' });
         }
 
         res.json(settings[0]);
     } catch (error: any) {
-        firebase_error(`❌ERROR fetching settings: ${error.message}`);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Error del servidor' });
     }
 });
 
 /**
  * URL: /api/v1/setting/:email
  */
-router.put('/:email', async (req: Request, res: Response) => {
+router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
         const { theme_mode, lang_code, allow_notification, merge_schedule_calendar } = req.body;
-        
-        firebase_log(`✏️INFO: Updating settings for ${email}`);
 
         const updatedSettings = await sql`
             UPDATE settings 
@@ -51,34 +45,34 @@ router.put('/:email', async (req: Request, res: Response) => {
             RETURNING *`;
 
         if (updatedSettings.length === 0) {
-            return res.status(404).json({ message: 'Settings not found' });
+            return res.status(404).json({ message: 'Configuració no trobada' });
         }
 
-        res.json({ message: 'Settings updated successfully', settings: updatedSettings[0] });
+        res.json({ message: 'Configuració actualitzada correctament', settings: updatedSettings[0] });
     } catch (error: any) {
-        firebase_error(`❌ERROR updating settings: ${error.message}`);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Error del servidor' });
     }
 });
 
 /**
  * URL: /api/v1/setting/:email
  */
-router.delete('/:email', async (req: Request, res: Response) => {
+router.delete('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
-        firebase_log(`❌INFO: Deleting settings for ${email}`);
 
-        const deletedSettings = await sql`DELETE FROM settings WHERE email = ${email} RETURNING *`;
+        const deletedSettings = await sql`
+            DELETE FROM settings 
+            WHERE email = ${email} 
+            RETURNING *`;
 
         if (deletedSettings.length === 0) {
-            return res.status(404).json({ message: 'Settings not found' });
+            return res.status(404).json({ message: 'Configuració no trobada' });
         }
 
-        res.json({ message: 'Settings deleted successfully' });
+        res.json({ message: 'Configuració eliminada correctament' });
     } catch (error: any) {
-        firebase_error(`❌ERROR deleting settings: ${error.message}`);
-        res.status(500).json({ message: 'Server error' });
+        res.status(500).json({ message: 'Error del servidor' });
     }
 });
 
