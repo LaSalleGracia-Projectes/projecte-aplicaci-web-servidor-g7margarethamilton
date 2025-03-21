@@ -6,6 +6,33 @@ const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 
 /**
+ * GET: Obtenir tots els usuaris (només per admins)
+ * URL: /api/v1/user
+ */
+router.get('/', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+
+    try {
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
+
+        if (!isAdmin) {
+            return res.status(403).json({ message: 'No tens permisos per accedir a la llista d’usuaris' });
+        }
+
+        const users = await sql`
+            SELECT email, google_id, nickname, avatar_url, is_admin, is_banned, created_at
+            FROM users
+            ORDER BY created_at DESC`;
+
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtenir usuaris' });
+    }
+});
+
+/**
+ * GET: Obtenir les dades de l'usuari
  * URL: /api/v1/user/:email
  */
 router.get('/:email', validateUserPermission, async (req: Request, res: Response) => {
@@ -28,6 +55,7 @@ router.get('/:email', validateUserPermission, async (req: Request, res: Response
 });
 
 /**
+ * PUT: Actualitzar les dades de l'usuari
  * URL: /api/v1/user/:email
  */
 router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
@@ -55,6 +83,7 @@ router.put('/:email', validateUserPermission, async (req: Request, res: Response
 });
 
 /**
+ * DELETE: Eliminar un usuari
  * URL: /api/v1/user/:email
  */
 router.delete('/:email', validateUserPermission, async (req: Request, res: Response) => {
