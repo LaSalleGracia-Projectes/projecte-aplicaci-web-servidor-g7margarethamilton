@@ -49,4 +49,24 @@ router.post('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * GET: Categories d’un usuari
+ * URL: /api/v1/module-category/:email
+ */
+router.get('/:email', validateUserPermission, async (req: Request, res: Response) => {
+    try {
+        const { email } = req.params;
+
+        const categories = await sql`
+            SELECT id, title, color, email, created_at
+            FROM module_category
+            WHERE email = ${email}
+            ORDER BY created_at DESC`;
+
+        res.json(categories);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtenir categories' });
+    }
+});
+
 export default router;
