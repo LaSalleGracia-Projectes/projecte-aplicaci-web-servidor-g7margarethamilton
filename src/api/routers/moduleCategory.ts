@@ -69,4 +69,29 @@ router.get('/:email', validateUserPermission, async (req: Request, res: Response
     }
 });
 
+/**
+ * PUT: Actualitzar una categoria
+ * URL: /api/v1/module-category/:email
+ */
+router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
+    try {
+        const { email } = req.params;
+        const { id, title, color } = req.body;
+
+        const updated = await sql`
+            UPDATE module_category
+            SET title = ${title}, color = ${color}
+            WHERE id = ${id} AND email = ${email}
+            RETURNING *`;
+
+        if (updated.length === 0) {
+            return res.status(404).json({ message: 'Categoria no trobada o no et pertany' });
+        }
+
+        res.json({ message: 'Categoria actualitzada correctament', category: updated[0] });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualitzar categoria' });
+    }
+});
+
 export default router;
