@@ -94,4 +94,28 @@ router.put('/:email', validateUserPermission, async (req: Request, res: Response
     }
 });
 
+/**
+ * DELETE: Eliminar una categoria
+ * URL: /api/v1/module-category/:email
+ */
+router.delete('/:email', validateUserPermission, async (req: Request, res: Response) => {
+    try {
+        const { email } = req.params;
+        const { id } = req.body;
+
+        const deleted = await sql`
+            DELETE FROM module_category
+            WHERE id = ${id} AND email = ${email}
+            RETURNING *`;
+
+        if (deleted.length === 0) {
+            return res.status(404).json({ message: 'Categoria no trobada o no et pertany' });
+        }
+
+        res.json({ message: 'Categoria eliminada correctament' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al eliminar categoria' });
+    }
+});
+
 export default router;
