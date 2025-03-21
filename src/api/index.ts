@@ -4,6 +4,7 @@ import logRouter from './routers/log.js';
 import userRouter from './routers/user.js';
 import settingRouter from './routers/setting.js';
 import moduleCategoryRouter from './routers/moduleCategory.js';
+import taskCategoryRouter from './routers/taskCategory.js';
 import authenticateToken from './middlewares/auth.js';
 
 const router = Router();
@@ -23,7 +24,7 @@ router.use('/setting', settingRouter);
 //router.use('/calendar-task', calendarTaskRouter);
 
 router.use('/module-category', moduleCategoryRouter);
-//router.use('/task-category', taskCategoryRouter);
+router.use('/task-category', taskCategoryRouter);
 
 router.get('/profile', authenticateToken, async (req: Request, res: Response) => {
   res.json({ 
