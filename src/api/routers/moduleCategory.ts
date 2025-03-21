@@ -1,31 +1,48 @@
 import { Router, Request, Response } from 'express';
 import postgres from 'postgres';
-import validateUserPermission from '../middlewares/validateUserPermission.js';
 
 const router = Router();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 
 /**
- * GET totes les categories (només per administradors)
+ * GET: Llistar categories de l'usuari autenticat
  * URL: /api/v1/module-category/
  */
 router.get('/', async (req: Request, res: Response) => {
     const { userId } = req.body;
+    try {
+        const categories = await sql`
+            SELECT * FROM module_category
+            WHERE email = ${userId}
+            ORDER BY created_at DESC`;
+        res.json(categories);
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al carregar les categories' });
+    }
+});
+
+/**
+ * GET: Obtenir una categoria per ID (només si és de l'usuari o admin)
+ * URL: /api/v1/module-category/:id
+ */
+router.get('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { userId } = req.body;
 
     try {
         const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
-        if (!user[0]?.is_admin) {
-            return res.status(403).json({ message: 'Només els administradors poden veure totes les categories' });
+        const isAdmin = user[0]?.is_admin;
+
+        const category = await sql`SELECT * FROM module_category WHERE id = ${id}`;
+        if (category.length === 0) return res.status(404).json({ message: 'Categoria no trobada' });
+
+        if (category[0].email !== userId && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per veure aquesta categoria' });
         }
 
-        const categories = await sql`
-            SELECT id, title, color, email, created_at
-            FROM module_category
-            ORDER BY created_at DESC`;
-
-        res.json(categories);
-    } catch (error) {
-        res.status(500).json({ message: 'Error al obtenir totes les categories' });
+        res.json(category[0]);
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al obtenir la categoria' });
     }
 });
 
@@ -42,79 +59,66 @@ router.post('/', async (req: Request, res: Response) => {
             INSERT INTO module_category (title, color, email, created_at)
             VALUES (${title}, ${color}, ${userId}, NOW())
             RETURNING *`;
-
-        res.status(201).json({ message: 'Categoria creada correctament', category: result[0] });
-    } catch (error) {
+        res.status(201).json({ message: 'Categoria creada', category: result[0] });
+    } catch (error: any) {
         res.status(500).json({ message: 'Error al crear la categoria' });
     }
 });
 
 /**
- * GET: Categories d’un usuari
- * URL: /api/v1/module-category/:email
+ * PUT: Actualitzar una categoria (només si és de l'usuari o si és admin)
+ * URL: /api/v1/module-category/:id
  */
-router.get('/:email', validateUserPermission, async (req: Request, res: Response) => {
+router.put('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { title, color, userId } = req.body;
+
     try {
-        const { email } = req.params;
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
 
-        const categories = await sql`
-            SELECT id, title, color, email, created_at
-            FROM module_category
-            WHERE email = ${email}
-            ORDER BY created_at DESC`;
+        const category = await sql`SELECT * FROM module_category WHERE id = ${id}`;
+        if (category.length === 0) return res.status(404).json({ message: 'Categoria no trobada' });
 
-        res.json(categories);
-    } catch (error) {
-        res.status(500).json({ message: 'Error al obtenir categories' });
-    }
-});
-
-/**
- * PUT: Actualitzar una categoria
- * URL: /api/v1/module-category/:email
- */
-router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
-    try {
-        const { email } = req.params;
-        const { id, title, color } = req.body;
+        if (category[0].email !== userId && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per modificar aquesta categoria' });
+        }
 
         const updated = await sql`
             UPDATE module_category
             SET title = ${title}, color = ${color}
-            WHERE id = ${id} AND email = ${email}
+            WHERE id = ${id}
             RETURNING *`;
 
-        if (updated.length === 0) {
-            return res.status(404).json({ message: 'Categoria no trobada o no et pertany' });
-        }
-
-        res.json({ message: 'Categoria actualitzada correctament', category: updated[0] });
-    } catch (error) {
-        res.status(500).json({ message: 'Error al actualitzar categoria' });
+        res.json({ message: 'Categoria actualitzada', category: updated[0] });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al actualitzar la categoria' });
     }
 });
 
 /**
- * DELETE: Eliminar una categoria
- * URL: /api/v1/module-category/:email
+ * DELETE: Eliminar una categoria (només si és de l'usuari o si és admin)
+ * URL: /api/v1/module-category/:id
  */
-router.delete('/:email', validateUserPermission, async (req: Request, res: Response) => {
+router.delete('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { userId } = req.body;
+
     try {
-        const { email } = req.params;
-        const { id } = req.body;
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
 
-        const deleted = await sql`
-            DELETE FROM module_category
-            WHERE id = ${id} AND email = ${email}
-            RETURNING *`;
+        const category = await sql`SELECT * FROM module_category WHERE id = ${id}`;
+        if (category.length === 0) return res.status(404).json({ message: 'Categoria no trobada' });
 
-        if (deleted.length === 0) {
-            return res.status(404).json({ message: 'Categoria no trobada o no et pertany' });
+        if (category[0].email !== userId && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per eliminar aquesta categoria' });
         }
 
+        await sql`DELETE FROM module_category WHERE id = ${id}`;
         res.json({ message: 'Categoria eliminada correctament' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error al eliminar categoria' });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al eliminar la categoria' });
     }
 });
 
