@@ -29,4 +29,24 @@ router.get('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST: Crear una nova categoria
+ * URL: /api/v1/module-category/
+ */
+router.post('/', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+    const { title, color } = req.body;
+
+    try {
+        const result = await sql`
+            INSERT INTO module_category (title, color, email, created_at)
+            VALUES (${title}, ${color}, ${userId}, NOW())
+            RETURNING *`;
+
+        res.status(201).json({ message: 'Categoria creada correctament', category: result[0] });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al crear la categoria' });
+    }
+});
+
 export default router;
