@@ -12,7 +12,7 @@ const validateUserPermission = async (req: Request, res: Response, next: NextFun
   }
 
   try {
-    // 🔍 Busquem l'usuari a la base de dades
+    // Busquem l'usuari a la base de dades
     const user = await sql`
       SELECT is_admin 
       FROM users 
@@ -24,12 +24,12 @@ const validateUserPermission = async (req: Request, res: Response, next: NextFun
 
     const { is_admin } = user[0];
 
-    // ✅ L'usuari té permís si:
+    // L'usuari té permís si:
     if (userId === email || is_admin) {
       return next(); // Permet l'accés
     }
 
-    // ❌ Si no compleix cap condició, retornem error
+    // Si no compleix cap condició, retornem error
     return res.status(403).json({ message: 'No tens permís per accedir a aquest recurs' });
   } catch (error) {
     return res.status(500).json({ message: 'Error del servidor' });
