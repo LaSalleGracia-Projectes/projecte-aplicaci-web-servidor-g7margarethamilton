@@ -59,4 +59,38 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST: Crear una nova tasca
+ * URL: /api/v1/schedule-task/
+ */
+router.post('/', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+    const {
+        title, content, priority,
+        start_time, end_time,
+        id_shedule, id_category
+    } = req.body;
+
+    try {
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${id_shedule}`;
+        if (schedule.length === 0) return res.status(404).json({ message: 'Schedule no trobat' });
+
+        if (schedule[0].email !== userId) {
+            return res.status(403).json({ message: 'No tens permís per afegir tasques a aquest schedule' });
+        }
+
+        const result = await sql`
+            INSERT INTO schedule_task 
+            (title, content, priority, start_time, end_time, id_shedule, id_category, created_at)
+            VALUES (
+                ${title}, ${content}, ${priority}, ${start_time}, ${end_time}, ${id_shedule}, ${id_category}, NOW()
+            )
+            RETURNING *`;
+
+        res.status(201).json({ message: 'Tasca creada', task: result[0] });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al crear la tasca' });
+    }
+});
+
 export default router;
