@@ -6,6 +6,7 @@ import settingRouter from './routers/setting.js';
 import moduleCategoryRouter from './routers/moduleCategory.js';
 import taskCategoryRouter from './routers/taskCategory.js';
 import scheduleRouter from './routers/schedule.js';
+import scheduleTaskRouter from './routers/scheduleTask.js';
 import authenticateToken from './middlewares/auth.js';
 
 const router = Router();
@@ -19,7 +20,7 @@ router.use('/user', userRouter);
 router.use('/setting', settingRouter);
 
 router.use('/schedule', scheduleRouter);
-//router.use('/schedule-task', scheduleTaskRouter);
+router.use('/schedule-task', scheduleTaskRouter);
 
 //router.use('/calendar', calendarRouter);
 //router.use('/calendar-task', calendarTaskRouter);
