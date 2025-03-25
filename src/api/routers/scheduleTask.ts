@@ -31,4 +31,32 @@ router.get('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * GET: Una tasca per ID (només si l’schedule és de l’usuari o admin)
+ * URL: /api/v1/schedule-task/:id
+ */
+router.get('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    try {
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
+
+        const task = await sql`SELECT * FROM schedule_task WHERE id = ${id}`;
+        if (task.length === 0) return res.status(404).json({ message: 'Tasca no trobada' });
+
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_shedule}`;
+        const isOwner = schedule[0]?.email === userId;
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per veure aquesta tasca' });
+        }
+
+        res.json(task[0]);
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al obtenir la tasca' });
+    }
+});
+
 export default router;
