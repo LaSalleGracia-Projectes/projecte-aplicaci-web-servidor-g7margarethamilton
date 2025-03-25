@@ -23,4 +23,29 @@ router.get('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * GET: Un calendari per ID (només si és de l'usuari o si és admin)
+ * URL: /api/v1/calendar/:id
+ */
+router.get('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    try {
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
+
+        const calendar = await sql`SELECT * FROM calendar WHERE id = ${id}`;
+        if (calendar.length === 0) return res.status(404).json({ message: 'Calendari no trobat' });
+
+        if (calendar[0].email !== userId && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per veure aquest calendari' });
+        }
+
+        res.json(calendar[0]);
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al obtenir el calendari' });
+    }
+});
+
 export default router;
