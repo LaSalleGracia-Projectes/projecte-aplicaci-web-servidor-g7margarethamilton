@@ -48,4 +48,24 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST: Crear un nou calendari
+ * URL: /api/v1/calendar/
+ */
+router.post('/', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+    const { title, is_favorite, id_category } = req.body;
+
+    try {
+        const result = await sql`
+            INSERT INTO calendar (title, is_favorite, email, id_category, created_at)
+            VALUES (${title}, ${is_favorite}, ${userId}, ${id_category}, NOW())
+            RETURNING *`;
+
+        res.status(201).json({ message: 'Calendari creat', calendar: result[0] });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al crear el calendari' });
+    }
+});
+
 export default router;
