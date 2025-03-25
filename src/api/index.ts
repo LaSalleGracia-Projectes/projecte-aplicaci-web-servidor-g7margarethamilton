@@ -7,6 +7,8 @@ import moduleCategoryRouter from './routers/moduleCategory.js';
 import taskCategoryRouter from './routers/taskCategory.js';
 import scheduleRouter from './routers/schedule.js';
 import scheduleTaskRouter from './routers/scheduleTask.js';
+import calendarRouter from './routers/calendar.js';
+import calendarTaskRouter from './routers/calendarTask.js';
 import authenticateToken from './middlewares/auth.js';
 
 const router = Router();
@@ -22,8 +24,8 @@ router.use('/setting', settingRouter);
 router.use('/schedule', scheduleRouter);
 router.use('/schedule-task', scheduleTaskRouter);
 
-//router.use('/calendar', calendarRouter);
-//router.use('/calendar-task', calendarTaskRouter);
+router.use('/calendar', calendarRouter);
+router.use('/calendar-task', calendarTaskRouter);
 
 router.use('/module-category', moduleCategoryRouter);
 router.use('/task-category', taskCategoryRouter);
