@@ -93,4 +93,45 @@ router.post('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * PUT: Actualitzar una tasca (només si ets el propietari o admin)
+ * URL: /api/v1/schedule-task/:id
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const {
+        title, content, priority,
+        start_time, end_time,
+        id_shedule, id_category,
+        userId
+    } = req.body;
+
+    try {
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
+
+        const task = await sql`SELECT * FROM schedule_task WHERE id = ${id}`;
+        if (task.length === 0) return res.status(404).json({ message: 'Tasca no trobada' });
+
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_shedule}`;
+        const isOwner = schedule[0]?.email === userId;
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per modificar aquesta tasca' });
+        }
+
+        const updated = await sql`
+            UPDATE schedule_task
+            SET title = ${title}, content = ${content}, priority = ${priority},
+                start_time = ${start_time}, end_time = ${end_time},
+                id_shedule = ${id_shedule}, id_category = ${id_category}
+            WHERE id = ${id}
+            RETURNING *`;
+
+        res.json({ message: 'Tasca actualitzada', task: updated[0] });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Error al actualitzar la tasca' });
+    }
+});
+
 export default router;
