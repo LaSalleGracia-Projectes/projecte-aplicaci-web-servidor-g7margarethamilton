@@ -68,4 +68,35 @@ router.post('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+* PUT: Actualitzar una agenda (només si és de l'usuari o si és admin)
+* URL: /api/v1/schedule/:id
+*/
+router.put('/:id', async (req: Request, res: Response) => {
+   const { id } = req.params;
+   const { title, is_favorite, id_category, userId } = req.body;
+
+   try {
+       const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+       const isAdmin = user[0]?.is_admin;
+
+       const schedule = await sql`SELECT * FROM schedule WHERE id = ${id}`;
+       if (schedule.length === 0) return res.status(404).json({ message: 'Agenda no trobada' });
+
+       if (schedule[0].email !== userId && !isAdmin) {
+           return res.status(403).json({ message: 'No tens permís per modificar aquesta agenda' });
+       }
+
+       const updated = await sql`
+           UPDATE schedule
+           SET title = ${title}, is_favorite = ${is_favorite}, id_category = ${id_category}
+           WHERE id = ${id}
+           RETURNING *`;
+
+       res.json({ message: 'Agenda actualitzada', schedule: updated[0] });
+   } catch (error: any) {
+       res.status(500).json({ message: 'Error al actualitzar l’agenda' });
+   }
+});
+
 export default router;
