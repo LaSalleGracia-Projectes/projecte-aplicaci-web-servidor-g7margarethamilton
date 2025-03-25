@@ -85,4 +85,40 @@ router.post('/', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * PUT: Actualitzar una tasca del calendari
+ * URL: /api/v1/calendar-task/:id
+ */
+router.put('/:id', async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { title, content, is_completed, priority, start_time, end_time, id_calendar, id_category, userId } = req.body;
+
+    try {
+        const task = await sql`SELECT * FROM calendar_task WHERE id = ${id}`;
+        if (task.length === 0) return res.status(404).json({ message: 'Tasca no trobada' });
+
+        const calendar = await sql`SELECT email FROM calendar WHERE id = ${task[0].id_calendar}`;
+        const isOwner = calendar[0]?.email === userId;
+
+        const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
+        const isAdmin = user[0]?.is_admin;
+
+        if (!isOwner && !isAdmin) {
+            return res.status(403).json({ message: 'No tens permís per modificar aquesta tasca' });
+        }
+
+        const updated = await sql`
+            UPDATE calendar_task
+            SET title = ${title}, content = ${content}, is_completed = ${is_completed},
+                priority = ${priority}, start_time = ${start_time}, end_time = ${end_time},
+                id_calendar = ${id_calendar}, id_category = ${id_category}
+            WHERE id = ${id}
+            RETURNING *`;
+
+        res.json({ message: 'Tasca actualitzada', task: updated[0] });
+    } catch {
+        res.status(500).json({ message: 'Error al actualitzar la tasca' });
+    }
+});
+
 export default router;
