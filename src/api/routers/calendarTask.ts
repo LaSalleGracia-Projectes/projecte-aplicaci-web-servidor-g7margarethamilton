@@ -58,4 +58,31 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST: Crear una nova tasca al calendari
+ * URL: /api/v1/calendar-task/
+ */
+router.post('/', async (req: Request, res: Response) => {
+    const { userId } = req.body;
+    const { title, content, is_completed, priority, start_time, end_time, id_calendar, id_category } = req.body;
+
+    try {
+        const calendar = await sql`SELECT email FROM calendar WHERE id = ${id_calendar}`;
+        if (calendar.length === 0) return res.status(404).json({ message: 'Calendari no trobat' });
+
+        if (calendar[0].email !== userId) {
+            return res.status(403).json({ message: 'No tens permís per afegir tasques a aquest calendari' });
+        }
+
+        const result = await sql`
+            INSERT INTO calendar_task (title, content, is_completed, priority, start_time, end_time, id_calendar, id_category, created_at)
+            VALUES (${title}, ${content}, ${is_completed}, ${priority}, ${start_time}, ${end_time}, ${id_calendar}, ${id_category}, NOW())
+            RETURNING *`;
+
+        res.status(201).json({ message: 'Tasca creada', task: result[0] });
+    } catch {
+        res.status(500).json({ message: 'Error al crear la tasca' });
+    }
+});
+
 export default router;
