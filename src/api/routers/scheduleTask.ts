@@ -22,7 +22,7 @@ router.get('/', async (req: Request, res: Response) => {
 
         const tasks = await sql`
             SELECT * FROM schedule_task
-            WHERE id_shedule = ANY(${scheduleIds})
+            WHERE id_schedule = ANY(${scheduleIds})
             ORDER BY start_time ASC`;
 
         res.json(tasks);
@@ -46,7 +46,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         const task = await sql`SELECT * FROM schedule_task WHERE id = ${id}`;
         if (task.length === 0) return res.status(404).json({ message: 'Tasca no trobada' });
 
-        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_shedule}`;
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_schedule}`;
         const isOwner = schedule[0]?.email === userId;
 
         if (!isOwner && !isAdmin) {
@@ -68,11 +68,11 @@ router.post('/', async (req: Request, res: Response) => {
     const {
         title, content, priority,
         start_time, end_time,
-        id_shedule, id_category
+        id_schedule, id_category
     } = req.body;
 
     try {
-        const schedule = await sql`SELECT email FROM schedule WHERE id = ${id_shedule}`;
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${id_schedule}`;
         if (schedule.length === 0) return res.status(404).json({ message: 'Schedule no trobat' });
 
         if (schedule[0].email !== userId) {
@@ -81,9 +81,9 @@ router.post('/', async (req: Request, res: Response) => {
 
         const result = await sql`
             INSERT INTO schedule_task 
-            (title, content, priority, start_time, end_time, id_shedule, id_category, created_at)
+            (title, content, priority, start_time, end_time, id_schedule, id_category, created_at)
             VALUES (
-                ${title}, ${content}, ${priority}, ${start_time}, ${end_time}, ${id_shedule}, ${id_category}, NOW()
+                ${title}, ${content}, ${priority}, ${start_time}, ${end_time}, ${id_schedule}, ${id_category}, NOW()
             )
             RETURNING *`;
 
@@ -102,7 +102,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const {
         title, content, priority,
         start_time, end_time,
-        id_shedule, id_category,
+        id_schedule, id_category,
         userId
     } = req.body;
 
@@ -113,7 +113,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         const task = await sql`SELECT * FROM schedule_task WHERE id = ${id}`;
         if (task.length === 0) return res.status(404).json({ message: 'Tasca no trobada' });
 
-        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_shedule}`;
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_schedule}`;
         const isOwner = schedule[0]?.email === userId;
 
         if (!isOwner && !isAdmin) {
@@ -124,7 +124,7 @@ router.put('/:id', async (req: Request, res: Response) => {
             UPDATE schedule_task
             SET title = ${title}, content = ${content}, priority = ${priority},
                 start_time = ${start_time}, end_time = ${end_time},
-                id_shedule = ${id_shedule}, id_category = ${id_category}
+                id_schedule = ${id_schedule}, id_category = ${id_category}
             WHERE id = ${id}
             RETURNING *`;
 
@@ -146,7 +146,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
         const task = await sql`SELECT * FROM schedule_task WHERE id = ${id}`;
         if (task.length === 0) return res.status(404).json({ message: 'Tasca no trobada' });
 
-        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_shedule}`;
+        const schedule = await sql`SELECT email FROM schedule WHERE id = ${task[0].id_schedule}`;
         const isOwner = schedule[0]?.email === userId;
 
         const user = await sql`SELECT is_admin FROM users WHERE email = ${userId}`;
