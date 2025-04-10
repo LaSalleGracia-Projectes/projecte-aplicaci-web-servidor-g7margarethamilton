@@ -180,9 +180,7 @@ router.post('/web/login',
             res.json({
                 tokenWeb,
                 user: {
-                    email: userData.email,
-                    nickname: userData.nickname,
-                    avatar_url: userData.avatar_url,
+                    userData: userData,
                 },
                 message: 'Successful login'
             });
@@ -290,9 +288,7 @@ router.post('/app/login',
             res.json({
                 tokenApp,
                 user: {
-                    email: userData.email,
-                    nickname: userData.nickname,
-                    avatar_url: userData.avatar_url,
+                    userData: userData,
                 },
                 message: 'Successful login'
             });
@@ -398,9 +394,7 @@ router.post('/app/google', async (req: Request, res: Response) => {
         res.json({
             tokenApp,
             user: {
-                email: userData.email,
-                nickname: userData.nickname,
-                avatar_url: userData.avatar_url,
+                userData: userData,
             },
             message: 'Login successful with Google',
         });
