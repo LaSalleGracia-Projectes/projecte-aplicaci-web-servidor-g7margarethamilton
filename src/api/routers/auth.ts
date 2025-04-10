@@ -4,8 +4,11 @@ import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import postgres from 'postgres';
 import { firebase_log, firebase_error } from './../../logger.js';
+import { OAuth2Client } from 'google-auth-library';
+
 
 const router = Router();
+const client = new OAuth2Client();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 const JWT_SECRET_WEB = process.env.JWT_SECRET_WEB ?? 'defaultsecret_web';
 const JWT_SECRET_APP = process.env.JWT_SECRET_APP ?? 'defaultsecret_app';
@@ -334,6 +337,76 @@ router.post('/app/logout', async (req: Request, res: Response) => {
 
     } catch (error: any) {
         firebase_error(`❌ERROR during app logout: ${(error as Error).message}`);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+router.post('/app/google', async (req: Request, res: Response) => {
+    try {
+        const { id_token } = req.body;
+
+        if (!id_token) {
+            return res.status(400).json({ message: 'id_token is required' });
+        }
+
+        // Verifiquem el token rebut del client mòbil
+        const ticket = await client.verifyIdToken({
+            idToken: id_token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+
+        if (!payload || !payload.email) {
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+
+        const email = payload.email;
+        const name = payload.name ?? 'User';
+        const googleId = payload.sub;
+
+        firebase_log(`📱INFO: Google login via app for ${email}`);
+
+        // Comprovem si l'usuari ja existeix
+        let user = await sql`SELECT * FROM users WHERE email = ${email}`;
+        let userData;
+
+        if (user.length === 0) {
+            // Registrem automàticament l'usuari
+            const avatar = payload.picture ?? await getAvatarUrl(name, email);
+            const nickname = name.replace(/\s+/g, '_').toLowerCase();
+
+            await sql`
+                INSERT INTO users (email, google_id, nickname, avatar_url, created_at)
+                VALUES (${email}, ${googleId}, ${nickname}, ${avatar}, NOW())`;
+
+            await sql`INSERT INTO settings (email) VALUES (${email})`;
+
+            user = await sql`SELECT * FROM users WHERE email = ${email}`;
+            firebase_log(`✅INFO: Registered new user via Google: ${email}`);
+        }
+
+        userData = user[0];
+
+        // Generem el token que no expira (només una vegada)
+        let tokenApp = userData.app_token;
+        if (!tokenApp) {
+            tokenApp = jwt.sign({ userId: email }, JWT_SECRET_APP);
+            await sql`UPDATE users SET app_token = ${tokenApp} WHERE email = ${email}`;
+        }
+
+        res.json({
+            tokenApp,
+            user: {
+                email: userData.email,
+                nickname: userData.nickname,
+                avatar_url: userData.avatar_url,
+            },
+            message: 'Login successful with Google',
+        });
+
+    } catch (error: any) {
+        firebase_error(`❌ERROR during Google login (app): ${error.message}`);
         res.status(500).json({ message: 'Server error' });
     }
 });
