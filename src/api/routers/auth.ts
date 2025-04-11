@@ -179,9 +179,7 @@ router.post('/web/login',
 
             res.json({
                 tokenWeb,
-                user: {
-                    userData: userData,
-                },
+                user: userData,
                 message: 'Successful login'
             });
 
@@ -287,9 +285,7 @@ router.post('/app/login',
 
             res.json({
                 tokenApp,
-                user: {
-                    userData: userData,
-                },
+                user: userData,
                 message: 'Successful login'
             });
 
@@ -305,34 +301,50 @@ router.post('/app/login',
  */
 router.post('/app/logout', async (req: Request, res: Response) => {
     try {
-        const { email, password } = req.body;
-        // Comprovem si s'han proporcionat les dades necessàries
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
+        const { email, password, google_id } = req.body;
+
+        firebase_log(`🚪INFO: Logout request for ${email}`);
+
+        if (!email) {
+            firebase_error('❌ERROR: Email is required for logout');
+            return res.status(400).json({ message: 'Email is required' });
         }
 
-        // Comprovem si l'usuari existeix
-        const user = await sql`SELECT * FROM users WHERE email = ${email}`;
-        if (user.length === 0) {
+        const [user] = await sql`SELECT * FROM users WHERE email = ${email}`;
+
+        if (!user) {
+            firebase_error(`❌ERROR: User not found for logout attempt: ${email}`);
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const userData = user[0];
+        if (user.password) {
+            if (!password) {
+                firebase_error(`❌ERROR: Password required for logout attempt: ${email}`);
+                return res.status(400).json({ message: 'Password is required' });
+            }
 
-        // Comprovem si la contrasenya és correcta
-        const validPassword = await bcrypt.compare(password, userData.password);
-        if (!validPassword) {
-            return res.status(401).json({ message: 'Incorrect password' });
+            const validPassword = await bcrypt.compare(password, user.password);
+            if (!validPassword) {
+                firebase_error(`❌ERROR: Incorrect password during logout attempt: ${email}`);
+                return res.status(401).json({ message: 'Incorrect password' });
+            }
+        } else if (user.google_id) {
+            if (!google_id || google_id !== user.google_id) {
+                firebase_error(`❌ERROR: Invalid Google credentials during logout: ${email}`);
+                return res.status(401).json({ message: 'Invalid Google credentials' });
+            }
+        } else {
+            firebase_error(`❌ERROR: Invalid authentication type during logout: ${email}`);
+            return res.status(400).json({ message: 'Invalid user authentication type' });
         }
 
-        // Esborrem el token de l'app de la base de dades
         await sql`UPDATE users SET app_token = NULL WHERE email = ${email}`;
 
-        firebase_log(`✅INFO: App logout successful for ${email}`);
+        firebase_log(`✅INFO: Successfully logged out user: ${email}`);
         res.json({ message: 'Successfully logged out from the app' });
 
-    } catch (error: any) {
-        firebase_error(`❌ERROR during app logout: ${(error as Error).message}`);
+    } catch (error) {
+        firebase_error(`❌ERROR during logout: ${error.message}`);
         res.status(500).json({ message: 'Server error' });
     }
 });
@@ -393,9 +405,7 @@ router.post('/app/google', async (req: Request, res: Response) => {
 
         res.json({
             tokenApp,
-            user: {
-                userData: userData,
-            },
+            user: userData,
             message: 'Login successful with Google',
         });
 
