@@ -68,7 +68,7 @@ router.post('/', async (req: Request, res: Response) => {
     const {
         title, content, priority,
         start_time, end_time,
-        id_schedule, id_category
+        id_schedule, id_category, week_day
     } = req.body;
 
     try {
@@ -81,16 +81,16 @@ router.post('/', async (req: Request, res: Response) => {
 
         const result = await sql`
             INSERT INTO schedule_task 
-            (title, content, priority, start_time, end_time, id_schedule, id_category, created_at)
+            (title, content, priority, start_time, end_time, week_day, id_schedule, id_category, created_at)
             VALUES (
-                ${title}, ${content}, ${priority}, ${start_time}, ${end_time}, ${id_schedule}, ${id_category}, NOW()
+                ${title}, ${content}, ${priority}, ${start_time}, ${end_time}, ${week_day}, ${id_schedule}, ${id_category}, NOW()
             )
             RETURNING *`;
 
         res.status(201).json({ message: 'Tasca creada', task: result[0] });
     } catch (error: any) {
-        res.status(500).json({ message: 'Error al crear la tasca' });
-    }
+        console.error('Error al crear tasca:', error);
+        res.status(500).json({ message: 'Error al crear la tasca' });    }
 });
 
 /**
@@ -101,7 +101,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const {
         title, content, priority,
-        start_time, end_time,
+        start_time, end_time, week_day,
         id_schedule, id_category,
         userId
     } = req.body;
@@ -123,7 +123,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         const updated = await sql`
             UPDATE schedule_task
             SET title = ${title}, content = ${content}, priority = ${priority},
-                start_time = ${start_time}, end_time = ${end_time},
+                start_time = ${start_time}, end_time = ${end_time}, week_day = ${week_day},
                 id_schedule = ${id_schedule}, id_category = ${id_category}
             WHERE id = ${id}
             RETURNING *`;
