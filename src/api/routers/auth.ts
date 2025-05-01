@@ -63,7 +63,7 @@ router.post('/register',
                 console.warn(`⚠️WARNING: Registration attempt with existing email: ${email}`);
                 return res.status(409).json({ message: 'User already exists' });
             }
-            // Generem un hash de la contrasenya
+            // Comprovem si l'usuari s'està registrant amb Google
             if (!google_id && !password) {
                 return res.status(400).json({ message: 'Password is required if not using Google Login.' });
             }
