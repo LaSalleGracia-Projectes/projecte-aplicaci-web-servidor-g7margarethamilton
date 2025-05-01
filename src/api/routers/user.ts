@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import postgres from 'postgres';
+import bcrypt from 'bcrypt';
 import validateUserPermission from '../middlewares/validateUserPermission.js';
 
 const router = Router();
@@ -61,24 +62,39 @@ router.get('/:email', validateUserPermission, async (req: Request, res: Response
 router.put('/:email', validateUserPermission, async (req: Request, res: Response) => {
     try {
         const { email } = req.params;
-        const { nickname, avatar_url, is_admin, is_banned } = req.body;
+        const { nickname, avatar_url, is_admin, is_banned, password } = req.body;
 
-        const updatedUser = await sql`
-            UPDATE users 
-            SET nickname = ${nickname}, 
-                avatar_url = ${avatar_url}, 
-                is_admin = ${is_admin}, 
-                is_banned = ${is_banned}
-            WHERE email = ${email}
-            RETURNING email, nickname, avatar_url, is_admin, is_banned, created_at`;
+        if (password !== null) {
+            const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+            const updatedUser = await sql`
+                UPDATE users 
+                SET password = ${hashedPassword}
+                WHERE email = ${email}
+                RETURNING email, nickname, avatar_url, is_admin, is_banned, created_at`;
 
-        if (updatedUser.length === 0) {
-            return res.status(404).json({ message: 'Usuari no trobat' });
+                if (updatedUser.length === 0) {
+                    return res.status(404).json({ message: 'Usuari no trobat' });
+                }
+    
+                res.json({ message: 'Contrasenya actualitzada correctament', user: updatedUser[0] });
+        } else {
+            const updatedUser = await sql`
+                UPDATE users 
+                SET nickname = ${nickname}, 
+                    avatar_url = ${avatar_url}, 
+                    is_admin = ${is_admin}, 
+                    is_banned = ${is_banned}
+                WHERE email = ${email}
+                RETURNING email, nickname, avatar_url, is_admin, is_banned, created_at`;
+
+            if (updatedUser.length === 0) {
+                return res.status(404).json({ message: 'Usuari no trobat' });
+            }
+
+            res.json({ message: 'Usuari actualitzat correctament', user: updatedUser[0] });
         }
-
-        res.json({ message: 'Usuari actualitzat correctament', user: updatedUser[0] });
     } catch (error: any) {
-        res.status(500).json({ message: 'Error del servidor' });
+        res.status(500).json({ message: 'Error del servidor: ' + error.message });
     }
 });
 
