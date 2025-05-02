@@ -4,8 +4,11 @@ import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import postgres from 'postgres';
 import { firebase_log, firebase_error } from './../../logger.js';
+import { OAuth2Client } from 'google-auth-library';
+import nodemailer from 'nodemailer';
 
 const router = Router();
+const client = new OAuth2Client();
 const sql = postgres(process.env.DATABASE_URL ?? '', { ssl: 'require' });
 const JWT_SECRET_WEB = process.env.JWT_SECRET_WEB ?? 'defaultsecret_web';
 const JWT_SECRET_APP = process.env.JWT_SECRET_APP ?? 'defaultsecret_app';
@@ -34,6 +37,77 @@ const getAvatarUrl = async (name: string, email: string): Promise<string> => {
     return avatarUrl;
 };
 
+function generatePassword(): string {
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    
+    const getRandom = (chars: string, count: number) =>
+        Array.from({ length: count }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+
+    const allChars = lowercase + uppercase + numbers;
+    const rest = getRandom(allChars, 3);
+    const password = getRandom(lowercase, 3) + getRandom(uppercase, 3) + getRandom(numbers, 3) + rest;
+
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+router.post('/reset-password', async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    try {
+        const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const settings = await sql`SELECT lang_code FROM settings WHERE email = ${email}`;
+        const langCode = settings.length > 0 ? settings[0].lang_code : 'en';
+
+        const newPassword = generatePassword();
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await sql`UPDATE users SET password = ${hashedPassword} WHERE email = ${email}`;
+
+        const subjectByLang: Record<string, string> = {
+            ca: 'Nova contrasenya',
+            es: 'Nueva contraseña',
+            en: 'New password'
+        };
+
+        const messageByLang: Record<string, string> = {
+            ca: `La teva nova contrasenya és: ${newPassword}`,
+            es: `Tu nueva contraseña es: ${newPassword}`,
+            en: `Your new password is: ${newPassword}`
+        };
+
+        const subject = subjectByLang[langCode] ?? subjectByLang['en'];
+        const message = messageByLang[langCode] ?? messageByLang['en'];
+
+        await transporter.sendMail({
+            from: `"Support" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject,
+            text: message
+        });
+
+        res.json({ message: 'Password reset and email sent successfully' });
+    } catch (error) {
+        console.error('Error resetting password:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 /**
  * Link: /api/v1/auth/register
  */
@@ -60,7 +134,7 @@ router.post('/register',
                 console.warn(`⚠️WARNING: Registration attempt with existing email: ${email}`);
                 return res.status(409).json({ message: 'User already exists' });
             }
-            // Generem un hash de la contrasenya
+            // Comprovem si l'usuari s'està registrant amb Google
             if (!google_id && !password) {
                 return res.status(400).json({ message: 'Password is required if not using Google Login.' });
             }
@@ -176,11 +250,7 @@ router.post('/web/login',
 
             res.json({
                 tokenWeb,
-                user: {
-                    email: userData.email,
-                    nickname: userData.nickname,
-                    avatar_url: userData.avatar_url,
-                },
+                user: userData,
                 message: 'Successful login'
             });
 
@@ -286,11 +356,7 @@ router.post('/app/login',
 
             res.json({
                 tokenApp,
-                user: {
-                    email: userData.email,
-                    nickname: userData.nickname,
-                    avatar_url: userData.avatar_url,
-                },
+                user: userData,
                 message: 'Successful login'
             });
 
@@ -306,34 +372,116 @@ router.post('/app/login',
  */
 router.post('/app/logout', async (req: Request, res: Response) => {
     try {
-        const { email, password } = req.body;
-        // Comprovem si s'han proporcionat les dades necessàries
-        if (!email || !password) {
-            return res.status(400).json({ message: 'Email and password are required' });
+        const { email, password, google_id } = req.body;
+
+        firebase_log(`🚪INFO: Logout request for ${email}`);
+
+        if (!email) {
+            firebase_error('❌ERROR: Email is required for logout');
+            return res.status(400).json({ message: 'Email is required' });
         }
 
-        // Comprovem si l'usuari existeix
-        const user = await sql`SELECT * FROM users WHERE email = ${email}`;
-        if (user.length === 0) {
+        const [user] = await sql`SELECT * FROM users WHERE email = ${email}`;
+
+        if (!user) {
+            firebase_error(`❌ERROR: User not found for logout attempt: ${email}`);
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const userData = user[0];
+        if (user.password) {
+            if (!password) {
+                firebase_error(`❌ERROR: Password required for logout attempt: ${email}`);
+                return res.status(400).json({ message: 'Password is required' });
+            }
 
-        // Comprovem si la contrasenya és correcta
-        const validPassword = await bcrypt.compare(password, userData.password);
-        if (!validPassword) {
-            return res.status(401).json({ message: 'Incorrect password' });
+            const validPassword = await bcrypt.compare(password, user.password);
+            if (!validPassword) {
+                firebase_error(`❌ERROR: Incorrect password during logout attempt: ${email}`);
+                return res.status(401).json({ message: 'Incorrect password' });
+            }
+        } else if (user.google_id) {
+            if (!google_id || google_id !== user.google_id) {
+                firebase_error(`❌ERROR: Invalid Google credentials during logout: ${email}`);
+                return res.status(401).json({ message: 'Invalid Google credentials' });
+            }
+        } else {
+            firebase_error(`❌ERROR: Invalid authentication type during logout: ${email}`);
+            return res.status(400).json({ message: 'Invalid user authentication type' });
         }
 
-        // Esborrem el token de l'app de la base de dades
         await sql`UPDATE users SET app_token = NULL WHERE email = ${email}`;
 
-        firebase_log(`✅INFO: App logout successful for ${email}`);
+        firebase_log(`✅INFO: Successfully logged out user: ${email}`);
         res.json({ message: 'Successfully logged out from the app' });
 
+    } catch (error) {
+        firebase_error(`❌ERROR during logout: ${error.message}`);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+router.post('/app/google', async (req: Request, res: Response) => {
+    try {
+        const { id_token } = req.body;
+
+        if (!id_token) {
+            return res.status(400).json({ message: 'id_token is required' });
+        }
+
+        // Verifiquem el token rebut del client mòbil
+        const ticket = await client.verifyIdToken({
+            idToken: id_token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+
+        if (!payload || !payload.email) {
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+
+        const email = payload.email;
+        const name = payload.name ?? 'User';
+        const googleId = payload.sub;
+
+        firebase_log(`📱INFO: Google login via app for ${email}`);
+
+        // Comprovem si l'usuari ja existeix
+        let user = await sql`SELECT * FROM users WHERE email = ${email}`;
+        let userData;
+
+        if (user.length === 0) {
+            // Registrem automàticament l'usuari
+            const avatar = payload.picture ?? await getAvatarUrl(name, email);
+            const nickname = name.replace(/\s+/g, '_').toLowerCase();
+
+            await sql`
+                INSERT INTO users (email, google_id, nickname, avatar_url, created_at)
+                VALUES (${email}, ${googleId}, ${nickname}, ${avatar}, NOW())`;
+
+            await sql`INSERT INTO settings (email) VALUES (${email})`;
+
+            user = await sql`SELECT * FROM users WHERE email = ${email}`;
+            firebase_log(`✅INFO: Registered new user via Google: ${email}`);
+        }
+
+        userData = user[0];
+
+        // Generem el token que no expira (només una vegada)
+        let tokenApp = userData.app_token;
+        if (!tokenApp) {
+            tokenApp = jwt.sign({ userId: email }, JWT_SECRET_APP);
+            await sql`UPDATE users SET app_token = ${tokenApp} WHERE email = ${email}`;
+        }
+
+        res.json({
+            tokenApp,
+            user: userData,
+            message: 'Login successful with Google',
+        });
+
     } catch (error: any) {
-        firebase_error(`❌ERROR during app logout: ${(error as Error).message}`);
+        firebase_error(`❌ERROR during Google login (app): ${error.message}`);
         res.status(500).json({ message: 'Server error' });
     }
 });
