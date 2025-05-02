@@ -5,7 +5,7 @@ import { body, validationResult } from 'express-validator';
 import postgres from 'postgres';
 import { firebase_log, firebase_error } from './../../logger.js';
 import { OAuth2Client } from 'google-auth-library';
-
+import nodemailer from 'nodemailer';
 
 const router = Router();
 const client = new OAuth2Client();
@@ -36,6 +36,77 @@ const getAvatarUrl = async (name: string, email: string): Promise<string> => {
     console.log(`✅INFO: Avatar successfully generated: ${avatarUrl}`);
     return avatarUrl;
 };
+
+function generatePassword(): string {
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    
+    const getRandom = (chars: string, count: number) =>
+        Array.from({ length: count }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+
+    const allChars = lowercase + uppercase + numbers;
+    const rest = getRandom(allChars, 3);
+    const password = getRandom(lowercase, 3) + getRandom(uppercase, 3) + getRandom(numbers, 3) + rest;
+
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+    },
+});
+
+router.post('/reset-password', async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    try {
+        const users = await sql`SELECT * FROM users WHERE email = ${email}`;
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const settings = await sql`SELECT lang_code FROM settings WHERE email = ${email}`;
+        const langCode = settings.length > 0 ? settings[0].lang_code : 'en';
+
+        const newPassword = generatePassword();
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await sql`UPDATE users SET password = ${hashedPassword} WHERE email = ${email}`;
+
+        const subjectByLang: Record<string, string> = {
+            ca: 'Nova contrasenya',
+            es: 'Nueva contraseña',
+            en: 'New password'
+        };
+
+        const messageByLang: Record<string, string> = {
+            ca: `La teva nova contrasenya és: ${newPassword}`,
+            es: `Tu nueva contraseña es: ${newPassword}`,
+            en: `Your new password is: ${newPassword}`
+        };
+
+        const subject = subjectByLang[langCode] ?? subjectByLang['en'];
+        const message = messageByLang[langCode] ?? messageByLang['en'];
+
+        await transporter.sendMail({
+            from: `"Support" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject,
+            text: message
+        });
+
+        res.json({ message: 'Password reset and email sent successfully' });
+    } catch (error) {
+        console.error('Error resetting password:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 /**
  * Link: /api/v1/auth/register
