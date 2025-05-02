@@ -60,6 +60,34 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+/**
+ * Link: /api/v1/auth/contact
+ */
+router.post('/contact', async (req: Request, res: Response) => {
+    const { email, message } = req.body;
+
+    if (!email || !message) {
+        return res.status(400).json({ message: 'Email and message are required' });
+    }
+
+    try {
+        await transporter.sendMail({
+            from: `"Web Contact" <${process.env.EMAIL_USER}>`,
+            to: process.env.EMAIL_USER,
+            subject: 'Nou missatge de contacte',
+            text: `Has rebut un nou missatge de contacte:\n\nRemitent: ${email}\n\nMissatge:\n${message}`,
+        });
+
+        res.json({ message: 'Message sent successfully' });
+    } catch (error) {
+        console.error('Error sending contact message:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+/**
+ * Link: /api/v1/auth/reset-password
+ */
 router.post('/reset-password', async (req: Request, res: Response) => {
     const { email } = req.body;
 
