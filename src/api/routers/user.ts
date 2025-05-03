@@ -64,7 +64,7 @@ router.put('/:email', validateUserPermission, async (req: Request, res: Response
         const { email } = req.params;
         const { nickname, avatar_url, is_admin, is_banned, password } = req.body;
 
-        if (password !== null) {
+        if (password) {
             const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
             const updatedUser = await sql`
                 UPDATE users 

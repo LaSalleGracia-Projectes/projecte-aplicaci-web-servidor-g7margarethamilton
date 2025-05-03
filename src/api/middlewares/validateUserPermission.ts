@@ -22,7 +22,13 @@ const validateUserPermission = async (req: Request, res: Response, next: NextFun
       return res.status(404).json({ message: 'Usuari no trobat' });
     }
 
-    const { is_admin } = user[0];
+    // Comprovem si l'usuari és admin
+    const tokenUser = await sql`
+      SELECT is_admin 
+      FROM users 
+      WHERE email = ${userId}`;
+
+    const { is_admin } = tokenUser[0];
 
     // L'usuari té permís si:
     if (userId === email || is_admin) {
